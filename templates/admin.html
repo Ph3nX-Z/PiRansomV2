@@ -1,5 +1,6 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
 <link href="https://fonts.googleapis.com/css2?family=Roboto+Slab&family=Roboto:wght@100;300&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
 <style>
   h1 {
     text-align:center;
@@ -107,8 +108,81 @@ canvas {
 
 
 
-<h1>Clients Informations</h1>
+
+
+
+
+<canvas id="myChart" style="width:100%;max-width:80%"></canvas>
+<br/>
+<br/>
+<br/>
+<script>
+var xValues = [
+{%for i in keys%}
+"{{i}}"{%if i!=keys[-1]%},{%endif%}
+{%endfor%}
+];
+var yValues = {{values}};
+var barColors = [
+{%for i in colors%}
+"{{i}}"{%if i!=colors[-1]%},{%endif%}
+{%endfor%}
+];
+
+new Chart("myChart", {
+  type: "doughnut",
+  data: {
+    labels: xValues,
+    datasets: [{
+      backgroundColor: barColors,
+      data: yValues
+    }]
+  },
+  options: {
+    title: {
+      display: true,
+      text: "Network graph"
+    }
+  }
+});
+</script>
+
+{%if bans=={}%}
+
+<form method="post">
+<div class="container">
+  <div class="row">
+{%for i in keys%}
+<div class="custom-control custom-switch col">
+  <input type="checkbox" class="custom-control-input" id="customSwitch{{i.replace('.','')}}" name="{{i.replace('.','')}}">
+  <label class="custom-control-label" for="customSwitch{{i.replace('.','')}}">Ban {{i}}</label>
+</div>
+{%endfor%}
+<input class="btn btn-primary" type="submit">
+</div>
+</div>
+</form>
+
+{%else%}
+
+<form method="post">
+<div class="container">
+  <div class="row">
+{%for i in bans.keys()%}
+<div class="custom-control custom-switch col">
+  <input type="checkbox" class="custom-control-input" id="customSwitch{{i.replace('.','')}}" name="{{i.replace('.','')}}" {%if bans[i]==1%}checked{%endif%}>
+  <label class="custom-control-label" for="customSwitch{{i.replace('.','')}}">Ban {{i}}</label>
+</div>
+{%endfor%}
+<input class="btn btn-primary" type="submit">
+</div>
+</div>
+</form>
+
+{%endif%}
+
 {%for i in ransom_keys.keys()%}
+
 
   <div id="accordion">
       <div class="card">

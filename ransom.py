@@ -14,7 +14,7 @@ from multiprocessing import Process
 import sys
 
 global host
-host = "localhost"
+host = "192.168.1.25"
 
 global hash_content
 with urllib.request.urlopen(f"http://{host}/get_hash") as hash:
