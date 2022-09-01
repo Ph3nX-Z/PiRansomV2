@@ -50,7 +50,7 @@ def decrypt_symetric(file_in,key):
     with open(file_in, "rb") as file:
         data = file.read()
     v = key.encode()
-    cipher = AES.new(key, AES.MODE_CBC, iv)
+    cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
     plaintext = cipher.decrypt(data)
     with open(file_in,'wb') as file:
         file.write(plaintext.rstrip(b"\0"))
